@@ -1,0 +1,58 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - '.github/workflows/**'
+
+env:
+  REGISTRY: harbor.int-talos-poc.pocketcove.net
+  IMAGE_NAME: library/demo-app
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag (commit SHA)
+        id: meta
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+          echo "FULL_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        working-directory: ./app
+        run: |
+          docker build -t ${{ steps.meta.outputs.FULL_IMAGE }} \
+            --build-arg VERSION=${{ steps.meta.outputs.IMAGE_TAG }} .
+
+      - name: Login to Harbor
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} \
+            -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
+
+      - name: Push to Harbor
+        run: |
+          docker push ${{ steps.meta.outputs.FULL_IMAGE }}
+          
+      - name: Update manifest with new image tag
+        run: |
+          sed -i.bak "s|image: .*|image: ${{ steps.meta.outputs.FULL_IMAGE }}|g" deploy/deployment.yaml
+          sed -i.bak "s|value: \".*\"|value: \"${{ steps.meta.outputs.IMAGE_TAG }}\"|g" deploy/deployment.yaml
+          rm deploy/deployment.yaml.bak
+
+      - name: Commit manifest update
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add deploy/deployment.yaml
+          git diff --staged --quiet || git commit -m "Update image to ${{ steps.meta.outputs.IMAGE_TAG }}"
+          git push origin main
