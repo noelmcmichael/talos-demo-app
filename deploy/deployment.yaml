@@ -22,12 +22,12 @@ spec:
     spec:
       containers:
       - name: app
-        image: harbor.int-talos-poc.pocketcove.net/library/demo-app:4f89b42
+        image: harbor.int-talos-poc.pocketcove.net/library/demo-app:8a68aab
         ports:
         - containerPort: 8080
         env:
         - name: VERSION
-          value: "4f89b42"
+          value: "8a68aab"
         resources:
           requests:
             memory: "64Mi"
