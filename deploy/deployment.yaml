@@ -20,6 +20,8 @@ spec:
       labels:
         app: demo-app
     spec:
+      imagePullSecrets:
+      - name: harbor-pull
       containers:
       - name: app
         image: harbor.int-talos-poc.pocketcove.net/library/demo-app:218c687
